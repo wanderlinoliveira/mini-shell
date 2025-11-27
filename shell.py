@@ -3,63 +3,75 @@ import sys
 
 # --- MÓDULO DE LEITURA E PARSING ---
 def ler_comando():
-    """
-    Exibe o prompt, lê a entrada do usuário usando os.read 
-    e retorna uma lista com comando e argumentos.
-    """
     prompt = b"myshell> "
-    
     try:
-        # Requisito obrigatório: Usar write para saída
         os.write(1, prompt) 
-        
-        # Requisito obrigatório: Usar read para entrada
-        # Lê até 1024 bytes do descritor 0 (stdin/teclado)
         entrada_bytes = os.read(0, 1024)
-        
-        # Se entrada_bytes for vazio, significa EOF (Ctrl+D)
-        if not entrada_bytes:
-            return None
-            
-        # Decodifica bytes para string e remove espaços/quebras de linha nas pontas
+        if not entrada_bytes: return None
         entrada_str = entrada_bytes.decode().strip()
-        
-        # Se o usuário só deu Enter sem digitar nada
-        if not entrada_str:
-            return []
-            
-        # Separa a string em pedaços (tokenização)
-        # Ex: "ls -l /home" vira ['ls', '-l', '/home']
-        argumentos = entrada_str.split()
-        
-        return argumentos
-
+        if not entrada_str: return []
+        return entrada_str.split()
     except OSError as e:
         print(f"Erro na leitura: {e}")
         return None
 
-# --- MÓDULO PRINCIPAL (LOOP) ---
+# --- MÓDULO DE EXECUÇÃO (NOVO!) ---
+def executar_comando(args):
+    """
+    Recebe uma lista de argumentos (ex: ['ls', '-l']).
+    Cria um processo filho e executa o comando.
+    """
+    try:
+        pid = os.fork()
+
+        if pid == 0:
+            # === ESTAMOS NO PROCESSO FILHO ===
+            # Aqui, vamos substituir o Python pelo comando digitado.
+            try:
+                # os.execvp(programa, lista_de_argumentos)
+                # args[0] é o nome do comando (ex: "ls")
+                # args é a lista completa (ex: ["ls", "-l"])
+                os.execvp(args[0], args)
+                
+            except FileNotFoundError:
+                # Se o comando não existir, o execvp falha e cai aqui.
+                print(f"Erro: Comando '{args[0]}' não encontrado.")
+                os._exit(1) # Encerra o filho com erro
+            except OSError as e:
+                print(f"Erro ao executar: {e}")
+                os._exit(1)
+
+        elif pid > 0:
+            # === ESTAMOS NO PROCESSO PAI (SHELL) ===
+            # O pai precisa esperar o filho terminar antes de mostrar o prompt de novo.
+            # os.wait() retorna uma tupla (pid, status), mas só queremos esperar.
+            os.wait()
+
+        else:
+            # pid < 0: Erro grave, o sistema não conseguiu criar o processo
+            print("Erro ao criar processo (fork falhou).")
+
+    except OSError as e:
+        print(f"Erro de sistema: {e}")
+
+# --- MÓDULO PRINCIPAL ---
 def main():
     while True:
-        # 1. Leitura
         args = ler_comando()
         
-        # Verifica se deve encerrar (Ctrl+D)
-        if args is None:
-            os.write(1, b"\nSaindo do shell...\n")
+        if args is None: # EOF
+            os.write(1, b"\n")
             break
             
-        # Verifica se o usuário deu enter vazio
-        if len(args) == 0:
+        if len(args) == 0: # Enter vazio
             continue
             
-        # Verifica comando de saída explícito
         if args[0] == "exit":
-            os.write(1, b"Saindo do shell...\n")
+            os.write(1, b"Saindo...\n")
             break
             
-        # 2. Por enquanto, apenas mostramos o que foi lido (Debug)
-        print(f"Comando lido: {args}")
+        # Agora chamamos a execução real!
+        executar_comando(args)
 
 if __name__ == "__main__":
     main()
