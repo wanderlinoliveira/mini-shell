@@ -6,16 +6,22 @@ def ler_comando():
     prompt = b"myshell> "
     try:
         os.write(1, prompt) 
+
         entrada_bytes = os.read(0, 1024)
+
         if not entrada_bytes: return None
+
         entrada_str = entrada_bytes.decode().strip()
+
         if not entrada_str: return []
+
         return entrada_str.split()
+    
     except OSError as e:
         print(f"Erro na leitura: {e}")
         return None
 
-# --- MÓDULO DE EXECUÇÃO (NOVO!) ---
+# --- MÓDULO DE EXECUÇÃO ---
 def executar_comando(args):
     """
     Recebe uma lista de argumentos (ex: ['ls', '-l']).
@@ -25,8 +31,6 @@ def executar_comando(args):
         pid = os.fork()
 
         if pid == 0:
-            # === ESTAMOS NO PROCESSO FILHO ===
-            # Aqui, vamos substituir o Python pelo comando digitado.
             try:
                 # os.execvp(programa, lista_de_argumentos)
                 # args[0] é o nome do comando (ex: "ls")
@@ -70,7 +74,6 @@ def main():
             os.write(1, b"Saindo...\n")
             break
             
-        # Agora chamamos a execução real!
         executar_comando(args)
 
 if __name__ == "__main__":
